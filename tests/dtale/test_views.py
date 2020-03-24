@@ -412,6 +412,16 @@ def test_build_column(unittest):
             response_data = json.loads(response.data)
             assert response_data['success']
 
+            for dt in ['float', 'int', 'string']:
+                c.get(
+                    '/dtale/build-column/{}'.format(c.port),
+                    query_string=dict(type='random', name='random_{}'.format(dt), cfg=json.dumps(dict(type=dt)))
+                )
+
+            response = c.get('/dtale/code-export/{}'.format(c.port))
+            response_data = json.loads(response.data)
+            assert response_data['success']
+
 
 @pytest.mark.unit
 def test_build_column_bins(unittest):
