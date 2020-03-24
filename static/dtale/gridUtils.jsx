@@ -175,10 +175,31 @@ const heatMap = chroma.scale(["red", "yellow", "green"]).domain([0, 0.5, 1]);
 
 function heatMapBackground({ raw, view }, { min, max }) {
   if (view === "") {
-    return 0;
+    return {};
   }
   const factor = min * -1;
-  return heatMap((raw + factor) / (max + factor));
+  return { background: heatMap((raw + factor) / (max + factor)) };
+}
+
+function dtypeHighlighting({ name, dtype }) {
+  if (name === IDX) {
+    return {};
+  }
+  const colType = findColType((dtype || "").toLowerCase());
+  if (colType === "float") {
+    return { background: "rgba(102,205,170,1.0)" };
+  } else if (colType === "int") {
+    return { background: "rgba(65,105,225,0.5)" };
+  } else if (colType === "date") {
+    return { background: "rgba(255,182,193,1.0)" };
+  } else if (colType === "string") {
+    return {};
+  } else {
+    if (_.startsWith(dtype, "bool")) {
+      return { background: "rgba(255,215,0,1.0)" };
+    }
+    return {};
+  }
 }
 
 const SORT_PROPS = [
@@ -226,6 +247,7 @@ function buildState(props) {
     formattingOpen: false,
     triggerResize: false,
     heatMapMode: false,
+    dtypeHighlighting: false,
   };
 }
 
@@ -252,6 +274,7 @@ export {
   ROW_HEIGHT,
   HEADER_HEIGHT,
   heatMapBackground,
+  dtypeHighlighting,
   SORT_PROPS,
   buildToggleId,
   buildState,

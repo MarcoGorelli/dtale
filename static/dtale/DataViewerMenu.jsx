@@ -24,7 +24,16 @@ class ReactDataViewerMenu extends React.Component {
       this.props.propagateState({
         columns: _.map(this.props.columns, c => _.assignIn({}, c)),
       });
-    const toggleHeatMap = () => this.props.propagateState({ heatMapMode: !this.props.heatMapMode });
+    const toggleHeatMap = () =>
+      this.props.propagateState({
+        heatMapMode: !this.props.heatMapMode,
+        dtypeHighlighting: false,
+      });
+    const toggleDtypeHighlighting = () =>
+      this.props.propagateState({
+        dtypeHighlighting: !this.props.dtypeHighlighting,
+        heatMapMode: false,
+      });
     return (
       <div
         className="column-toggle__dropdown"
@@ -95,6 +104,18 @@ class ReactDataViewerMenu extends React.Component {
               <button className="btn btn-plain" onClick={toggleHeatMap}>
                 <i className={`fa fa-${this.props.heatMapMode ? "fire-extinguisher" : "fire-alt"} ml-2 mr-4`} />
                 <span className={`font-weight-bold${this.props.heatMapMode ? " flames" : ""}`}>Heat Map</span>
+              </button>
+            </span>
+          </li>
+          <li>
+            <span className="toggler-action">
+              <button className="btn btn-plain" onClick={toggleDtypeHighlighting}>
+                <div style={{ display: "inherit" }}>
+                  <div className={`dtype-highlighting${this.props.dtypeHighlighting ? " spin" : ""}`} />
+                  <span className="font-weight-bold" style={{ paddingLeft: ".4em" }}>
+                    Highlight Dtypes
+                  </span>
+                </div>
               </button>
             </span>
           </li>
@@ -177,6 +198,7 @@ ReactDataViewerMenu.propTypes = {
   propagateState: PropTypes.func,
   openChart: PropTypes.func,
   heatMapMode: PropTypes.bool,
+  dtypeHighlighting: PropTypes.bool,
   hideShutdown: PropTypes.bool,
   dataId: PropTypes.string.isRequired,
 };

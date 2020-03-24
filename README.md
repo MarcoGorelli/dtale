@@ -476,6 +476,11 @@ d.offline_chart(chart_type='bar', x='x', y='z3', agg='sum')
 ```
 [![](http://img.youtube.com/vi/DseSmc3fZvc/0.jpg)](http://www.youtube.com/watch?v=DseSmc3fZvc "Offline Charts Tutorial")
 
+**Pro Tip: If generating offline charts in jupyter notebooks and you run out of memory please add the following to your command-line when starting jupyter**
+
+`--NotebookApp.iopub_data_rate_limit=1.0e10`
+
+
 **Disclaimer: Long Running Chart Requests**
 
 If you choose to build a chart that requires a lot of computational resources then it will take some time to run.  Based on the way Flask & plotly/dash interact this will block you from performing any other request until it completes.  There are two courses of action in this situation:
