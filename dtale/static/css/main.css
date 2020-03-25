@@ -10538,10 +10538,10 @@ div.container-fluid.code-export > div#popup-content > div.modal-footer, {
 
 .dtype-highlighting
 {
-  height: 1.4em;
-  width: 1.4em;
+  height: 18px;
+  width: 18px;
   box-sizing: border-box;
-  border: 0.35em solid; /* (1.5em * 0.25) */
+  border: 5px solid; /* (1.5em * 0.25) */
   border-color: rgba(102,205,170,1.0) rgba(65,105,225,0.5) rgba(255,182,193,1.0) rgba(255,215,0,1.0);
   border-radius: 50%;
   opacity: 0.9;

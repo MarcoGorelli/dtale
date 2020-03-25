@@ -185,21 +185,24 @@ function dtypeHighlighting({ name, dtype }) {
   if (name === IDX) {
     return {};
   }
-  const colType = findColType((dtype || "").toLowerCase());
-  if (colType === "float") {
-    return { background: "rgba(102,205,170,1.0)" };
+  const lowerDtype = (dtype || "").toLowerCase();
+  const colType = findColType(lowerDtype);
+  if (_.startsWith(lowerDtype, "category")) {
+    return { background: "#E1BEE7" };
+  } else if (_.startsWith(lowerDtype, "timedelta")) {
+    return { background: "#FFCC80" };
+  } else if (colType === "float") {
+    return { background: "#B2DFDB" };
   } else if (colType === "int") {
-    return { background: "rgba(65,105,225,0.5)" };
+    return { background: "#BBDEFB" };
   } else if (colType === "date") {
-    return { background: "rgba(255,182,193,1.0)" };
+    return { background: "#F8BBD0" };
   } else if (colType === "string") {
     return {};
-  } else {
-    if (_.startsWith(dtype, "bool")) {
-      return { background: "rgba(255,215,0,1.0)" };
-    }
-    return {};
+  } else if (_.startsWith(lowerDtype, "bool")) {
+    return { background: "#FFF59D" };
   }
+  return {};
 }
 
 const SORT_PROPS = [

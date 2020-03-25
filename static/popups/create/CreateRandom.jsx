@@ -27,7 +27,7 @@ function buildCode(cfg) {
       return null;
     }
     if (cfg.type === "int") {
-      code = `pd.Series(np.random.randint(${low || 0}, high=${high || 10}, size=len(df)), index=df.index)`;
+      code = `pd.Series(np.random.randint(${low || 0}, high=${high || 100}, size=len(df)), index=df.index)`;
     } else {
       let floats = "np.random.rand(len(df))";
       if (low < 0 || high > 1) {
@@ -58,7 +58,8 @@ class CreateRandom extends React.Component {
   updateState(state) {
     const currState = _.assignIn(this.state, state);
     const props = currState.type === "string" ? ["type", "chars", "length"] : ["type", "low", "high"];
-    const cfg = _.pick(currState, props);
+    let cfg = _.pick(currState, props);
+    cfg = _.pickBy(cfg, _.identity);
     this.setState(currState, () => this.props.updateState({ cfg, code: buildCode(currState) }));
   }
 
@@ -100,7 +101,7 @@ class CreateRandom extends React.Component {
             type="number"
             className="form-control"
             value={this.state.length || ""}
-            onChange={e => this.updateState({ low: e.target.value })}
+            onChange={e => this.updateState({ length: e.target.value })}
           />
           <small>Default: 10</small>
         </div>
@@ -112,7 +113,7 @@ class CreateRandom extends React.Component {
             type="text"
             className="form-control"
             value={this.state.chars || ""}
-            onChange={e => this.updateState({ high: e.target.value })}
+            onChange={e => this.updateState({ chars: e.target.value })}
           />
           <small>{"Default: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'"}</small>
         </div>

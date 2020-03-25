@@ -136,7 +136,7 @@ class BinsColumnBuilder(object):
 
 
 def id_generator(size=10, chars=string.ascii_uppercase + string.digits):
-    return ''.join(random.choice(chars) for _ in range(size))
+    return ''.join(random.choice(chars) for _ in range(int(size)))
 
 
 class RandomColumnBuilder(object):
@@ -176,7 +176,7 @@ class RandomColumnBuilder(object):
             if self.cfg.get('length') != 10:
                 kwargs.append('size={size}'.format(size=self.cfg.get('length')))
             if self.cfg.get('chars'):
-                kwargs.append("chars='{chars}'".format(size=self.cfg.get('chars')))
+                kwargs.append("chars='{chars}'".format(chars=self.cfg.get('chars')))
             kwargs = ', '.join(kwargs)
             return (
                 'import number\nimport random\n\n'

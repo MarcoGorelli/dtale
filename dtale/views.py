@@ -843,6 +843,7 @@ def build_column(data_id):
         name = get_str_arg(request, 'name')
         if not name:
             raise Exception("'name' is required for new column!")
+        name = str(name)
         data = global_state.get_data(data_id)
         if name in data.columns:
             raise Exception("A column named '{}' already exists!".format(name))
@@ -854,7 +855,10 @@ def build_column(data_id):
         dtype = find_dtype(data[name])
         data_ranges = {}
         if classify_type(dtype) == 'F' and not data[name].isnull().all():
-            data_ranges[name] = data[[name]].agg([min, max]).to_dict()[name]
+            try:
+                data_ranges[name] = data[[name]].agg(['min', 'max']).to_dict()[name]
+            except ValueError:
+                pass
         dtype_f = dtype_formatter(data, {name: dtype}, data_ranges)
         global_state.set_data(data_id, data)
         curr_dtypes = global_state.get_dtypes(data_id)
@@ -1130,6 +1134,7 @@ def get_data(data_id):
                         results[i] = dict_merge({IDX_COL: i}, d)
         columns = [dict(name=IDX_COL, dtype='int64', visible=True)] + global_state.get_dtypes(data_id)
         return_data = dict(results=results, columns=columns, total=total)
+        print(return_data)
         return jsonify(return_data)
     except BaseException as e:
         return jsonify(dict(error=str(e), traceback=str(traceback.format_exc())))
