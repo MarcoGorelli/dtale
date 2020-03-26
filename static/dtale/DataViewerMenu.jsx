@@ -34,6 +34,7 @@ class ReactDataViewerMenu extends React.Component {
         dtypeHighlighting: !this.props.dtypeHighlighting,
         heatMapMode: false,
       });
+    const exportCsv = () => window.open(`/dtale/data-export/${dataId}?_id=${new Date().getTime()}`, "_blank");
     return (
       <div
         className="column-toggle__dropdown"
@@ -93,14 +94,6 @@ class ReactDataViewerMenu extends React.Component {
           </li>
           <li>
             <span className="toggler-action">
-              <button className="btn btn-plain" onClick={resize}>
-                <i className="fa fa-expand ml-2 mr-4" />
-                <span className="font-weight-bold">Resize</span>
-              </button>
-            </span>
-          </li>
-          <li>
-            <span className="toggler-action">
               <button className="btn btn-plain" onClick={toggleHeatMap}>
                 <i className={`fa fa-${this.props.heatMapMode ? "fire-extinguisher" : "fire-alt"} ml-2 mr-4`} />
                 <span className={`font-weight-bold${this.props.heatMapMode ? " flames" : ""}`}>Heat Map</span>
@@ -135,6 +128,22 @@ class ReactDataViewerMenu extends React.Component {
               <button className="btn btn-plain" onClick={openCodeExport}>
                 <i className="ico-code" />
                 <span className="font-weight-bold">Code Export</span>
+              </button>
+            </span>
+          </li>
+          <li>
+            <span className="toggler-action">
+              <button className="btn btn-plain" onClick={exportCsv}>
+                <i className="ico-doc" />
+                <span className="font-weight-bold">CSV Export</span>
+              </button>
+            </span>
+          </li>
+          <li>
+            <span className="toggler-action">
+              <button className="btn btn-plain" onClick={resize}>
+                <i className="fa fa-expand ml-2 mr-4" />
+                <span className="font-weight-bold">Resize</span>
               </button>
             </span>
           </li>

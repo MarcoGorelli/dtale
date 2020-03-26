@@ -749,3 +749,23 @@ def build_code_export(data_id, imports='import pandas as pd\n\n', query=None):
             cols=', '.join(cols), dirs="', '".join(dirs)
         ))
     return final_history
+
+
+def export_to_csv_buffer(data, tsv=False):
+    if PY3:
+        from io import BytesIO, StringIO
+        proxy = StringIO()
+        kwargs = dict(encoding='utf-8', index=False)
+        if tsv:
+            kwargs['sep'] = '\t'
+        data.to_csv(proxy, encoding='utf-8', index=False)
+        csv_buffer = BytesIO()
+        csv_buffer.write(proxy.getvalue().encode('utf-8'))
+        proxy.close()
+    else:
+        from StringIO import StringIO
+        csv_buffer = StringIO()
+        data.to_csv(csv_buffer, encoding='utf-8', index=False)
+
+    csv_buffer.seek(0)
+    return csv_buffer

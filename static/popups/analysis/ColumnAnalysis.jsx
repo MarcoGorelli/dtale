@@ -1,66 +1,39 @@
 import qs from "querystring";
 
-import $ from "jquery";
 import _ from "lodash";
 import PropTypes from "prop-types";
 import React from "react";
 import { connect } from "react-redux";
+import Select, { createFilter } from "react-select";
 
-import { RemovableError } from "../RemovableError";
-import actions from "../actions/dtale";
-import { buildURLParams } from "../actions/url-utils";
-import chartUtils from "../chartUtils";
-import { findColType } from "../dtale/gridUtils";
-import { fetchJson } from "../fetcher";
-import { renderCodePopupAnchor } from "./CodePopup";
+import { RemovableError } from "../../RemovableError";
+import actions from "../../actions/dtale";
+import { buildURLParams } from "../../actions/url-utils";
+import chartUtils from "../../chartUtils";
+import { findColType } from "../../dtale/gridUtils";
+import { fetchJson } from "../../fetcher";
+import { renderCodePopupAnchor } from "../CodePopup";
+import { AGGREGATION_OPTS } from "../charts/Aggregations";
+import { createChart, filterBuilder } from "./columnAnalysisUtils";
+
+require("./ColumnAnalysis.css");
 
 const BASE_ANALYSIS_URL = "/dtale/column-analysis";
-const DESC_PROPS = ["count", "mean", "std", "min", "25%", "50%", "75%", "max"];
-
-function createColumnAnalysis(ctx, fetchedData, col, type) {
-  const { desc, labels, data } = fetchedData;
-  if (desc) {
-    const descHTML = _.map(DESC_PROPS, p => `${_.capitalize(p)}: <b>${desc[p]}</b>`).join(", ");
-    $("#describe").html(`<small>${descHTML}</small>`);
-  } else {
-    $("#describe").empty();
-  }
-  return chartUtils.createChart(ctx, {
-    type: "bar",
-    data: {
-      labels: labels,
-      datasets: [{ label: col, data: data, backgroundColor: "rgb(42, 145, 209)" }],
-    },
-    options: {
-      legend: { display: false },
-      scales: {
-        xAxes: [
-          {
-            scaleLabel: {
-              display: true,
-              labelString: type === "histogram" ? "Bin" : "Value",
-            },
-          },
-        ],
-        yAxes: [
-          {
-            scaleLabel: {
-              display: true,
-              labelString: "Count",
-            },
-          },
-        ],
-      },
-    },
-  });
-}
 
 class ReactColumnAnalysis extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { chart: null, bins: "20", type: null, dtype: null };
+    this.state = {
+      chart: null,
+      bins: "20",
+      top: "100",
+      type: null,
+      dtype: null,
+      ordinalCol: null,
+      ordinalAgg: _.find(AGGREGATION_OPTS, { value: "sum" }),
+    };
     this.buildChartTypeToggle = this.buildChartTypeToggle.bind(this);
-    this.buildBinFilter = this.buildBinFilter.bind(this);
+    this.buildOrdinalInputs = this.buildOrdinalInputs.bind(this);
     this.buildAnalysisFilters = this.buildAnalysisFilters.bind(this);
     this.buildAnalysis = this.buildAnalysis.bind(this);
   }
@@ -69,7 +42,7 @@ class ReactColumnAnalysis extends React.Component {
     if (!_.isEqual(this.props, newProps)) {
       return true;
     }
-    const updateState = ["bins", "dtype", "type", "error"];
+    const updateState = ["bins", "top", "dtype", "type", "error", "ordinalCol", "ordinalAgg"];
     if (!_.isEqual(_.pick(this.state, updateState), _.pick(newState, updateState))) {
       return true;
     }
@@ -114,32 +87,55 @@ class ReactColumnAnalysis extends React.Component {
     );
   }
 
-  buildBinFilter() {
-    const colType = findColType(this.state.dtype);
-    const updateBins = e => {
-      if (e.key === "Enter") {
-        if (this.state.bins && parseInt(this.state.bins)) {
-          this.buildAnalysis();
-        }
-        e.preventDefault();
+  buildOrdinalInputs() {
+    const updateOrdinal = (prop, val) => {
+      const currState = _.assignIn({}, _.pick(this.state, ["ordinalCol", "ordinalAgg"]), { [prop]: val });
+      if (currState.ordinalCol && currState.ordinalAgg) {
+        this.setState(currState, this.buildAnalysis);
       }
     };
+    const colOpts = _.map(
+      _.sortBy(
+        _.reject(this.state.cols, {
+          name: _.get(this.props, "chartData.selectedCol"),
+        }),
+        c => _.toLower(c.name)
+      ),
+      c => ({ value: c.name })
+    );
     return [
-      <div key={0} className={`col-auto text-center ${colType === "int" ? "pl-0" : ""}`}>
+      <div key={0} className="col-auto text-center pr-4">
         <div>
-          <b>Bins</b>
+          <b>Ordinal</b>
         </div>
         <div style={{ marginTop: "-.5em" }}>
-          <small>(Please edit)</small>
+          <small>(Choose Col/Agg)</small>
         </div>
       </div>,
-      <div key={1} style={{ width: "3em" }} data-tip="Press ENTER to submit" className="mb-auto mt-auto">
-        <input
-          type="text"
-          className="form-control text-center"
-          value={this.state.bins}
-          onChange={e => this.setState({ bins: e.target.value })}
-          onKeyPress={updateBins}
+      <div key={1} className="col-auto pl-0 mr-3 ordinal-dd">
+        <Select
+          className="Select is-clearable is-searchable Select--single"
+          classNamePrefix="Select"
+          options={colOpts}
+          getOptionLabel={_.property("value")}
+          getOptionValue={_.property("value")}
+          value={this.state.ordinalCol}
+          onChange={v => updateOrdinal("ordinalCol", v)}
+          noOptionsText={() => "No columns found"}
+          isClearable
+          filterOption={createFilter({ ignoreAccents: false })}
+        />
+      </div>,
+      <div key={2} className="col-auto pl-0 mr-3 ordinal-dd">
+        <Select
+          className="Select is-clearable is-searchable Select--single"
+          classNamePrefix="Select"
+          options={AGGREGATION_OPTS}
+          getOptionLabel={_.property("label")}
+          getOptionValue={_.property("value")}
+          value={this.state.ordinalAgg}
+          onChange={v => updateOrdinal("ordinalAgg", v)}
+          filterOption={createFilter({ ignoreAccents: false })}
         />
       </div>,
     ];
@@ -148,6 +144,7 @@ class ReactColumnAnalysis extends React.Component {
   buildAnalysisFilters() {
     const colType = findColType(this.state.dtype);
     const title = this.state.type === "histogram" ? "Histogram" : "Value Counts";
+    const filterHandler = filterBuilder(this.state, this.buildAnalysis, state => this.setState(state));
     if ("int" === colType) {
       // int -> Value Counts or Histogram
       if (this.state.type === "histogram") {
@@ -155,7 +152,7 @@ class ReactColumnAnalysis extends React.Component {
           <div className="form-group row small-gutters mb-0">
             <div className="col row">
               {this.buildChartTypeToggle()}
-              {this.buildBinFilter()}
+              {filterHandler("bins")}
             </div>
             <div className="col-auto">
               <div>{renderCodePopupAnchor(this.state.code, title)}</div>
@@ -165,7 +162,11 @@ class ReactColumnAnalysis extends React.Component {
       } else {
         return (
           <div className="form-group row small-gutters mb-0">
-            <div className="col row">{this.buildChartTypeToggle()}</div>
+            <div className="col row">
+              {this.buildChartTypeToggle()}
+              {filterHandler("top")}
+              {this.buildOrdinalInputs()}
+            </div>
             <div className="col-auto">
               <div>{renderCodePopupAnchor(this.state.code, title)}</div>
             </div>
@@ -176,11 +177,11 @@ class ReactColumnAnalysis extends React.Component {
       // floats -> Histogram
       return (
         <div className="form-group row small-gutters mb-0">
-          <div className="col-md-5 row">{this.buildBinFilter()}</div>
-          <div className="col-md-2 text-center">
-            <h4 className="modal-title font-weight-bold">{title}</h4>
+          <div className="col row">
+            <h4 className="pl-5 pt-3 modal-title font-weight-bold">{title}</h4>
+            {filterHandler("bins")}
           </div>
-          <div className="col-md-5 text-right">
+          <div className="col-auto">
             <div>{renderCodePopupAnchor(this.state.code, title)}</div>
           </div>
         </div>
@@ -189,11 +190,12 @@ class ReactColumnAnalysis extends React.Component {
     // date, string, bool -> Value Counts
     return (
       <div className="form-group row small-gutters mb-0">
-        <div className="col-md-5" />
-        <div className="col-md-2 text-center">
-          <h4 className="modal-title font-weight-bold">{title}</h4>
+        <div className="col row">
+          <h4 className="pl-5 pt-3 modal-title font-weight-bold">{title}</h4>
+          {filterHandler("top")}
+          {this.buildOrdinalInputs()}
         </div>
-        <div className="col-md-5 text-right">
+        <div className="col-auto">
           <div>{renderCodePopupAnchor(this.state.code, title)}</div>
         </div>
       </div>
@@ -202,11 +204,10 @@ class ReactColumnAnalysis extends React.Component {
 
   buildAnalysis() {
     const { selectedCol } = this.props.chartData;
-    const paramProps = ["selectedCol", "query", "bins", "type"];
-    const params = _.assignIn({}, this.props.chartData, {
-      bins: this.state.bins,
-      type: this.state.type,
-    });
+    const paramProps = ["selectedCol", "query", "bins", "top", "type", "ordinalCol", "ordinalAgg"];
+    const params = _.assignIn({}, this.props.chartData, _.pick(this.state, ["type", "bins", "top"]));
+    params.ordinalCol = _.get(this.state.ordinalCol, "value");
+    params.ordinalAgg = _.get(this.state.ordinalAgg, "value");
     const url = `${BASE_ANALYSIS_URL}/${this.props.dataId}?${qs.stringify(buildURLParams(params, paramProps))}`;
     fetchJson(url, fetchedChartData => {
       const newState = { error: null };
@@ -216,11 +217,13 @@ class ReactColumnAnalysis extends React.Component {
       newState.code = _.get(fetchedChartData, "code", "");
       newState.dtype = _.get(fetchedChartData, "dtype", "");
       newState.type = _.get(fetchedChartData, "chart_type", "histogram");
+      newState.query = _.get(fetchedChartData, "query");
+      newState.cols = _.get(fetchedChartData, "cols", []);
       const builder = ctx => {
         if (!_.get(fetchedChartData, "data", []).length) {
           return null;
         }
-        return createColumnAnalysis(ctx, fetchedChartData, selectedCol, newState.type);
+        return createChart(ctx, fetchedChartData, selectedCol, newState.type);
       };
       newState.chart = chartUtils.chartWrapper("columnAnalysisChart", this.state.chart, builder);
       this.setState(newState);
@@ -243,6 +246,7 @@ class ReactColumnAnalysis extends React.Component {
             <i className="ico-equalizer" />
             {` ${this.state.type === "histogram" ? "Histogram" : "Value Counts"} for `}
             <strong>{_.get(this.props, "chartData.selectedCol")}</strong>
+            {this.state.query && <small>{this.state.query}</small>}
             <div id="describe" />
           </h4>
         </div>

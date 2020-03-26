@@ -23,8 +23,8 @@ from dtale.charts.utils import (check_all_nan, check_exceptions,
 from dtale.dash_application.layout import (AGGS, build_error,
                                            update_label_for_freq)
 from dtale.utils import (build_code_export, classify_type, dict_merge,
-                         divide_chunks, flatten_lists, get_dtypes, make_list,
-                         run_query)
+                         divide_chunks, export_to_csv_buffer, flatten_lists,
+                         get_dtypes, make_list, run_query)
 
 if PY3:
     from io import StringIO
@@ -1120,16 +1120,4 @@ def export_chart(data_id, params):
 
 def export_chart_data(data_id, params):
     data = build_raw_figure_data(data_id, **params)
-    if PY3:
-        from io import BytesIO
-        proxy = StringIO()
-        data.to_csv(proxy, encoding='utf-8', index=False)
-        csv_buffer = BytesIO()
-        csv_buffer.write(proxy.getvalue().encode('utf-8'))
-        proxy.close()
-    else:
-        csv_buffer = StringIO()
-        data.to_csv(csv_buffer, encoding='utf-8', index=False)
-
-    csv_buffer.seek(0)
-    return csv_buffer
+    return export_to_csv_buffer(data)

@@ -1,7 +1,8 @@
+import random
+import string
+
 import numpy as np
 import pandas as pd
-import string
-import random
 
 import dtale.global_state as global_state
 

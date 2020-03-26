@@ -104,7 +104,7 @@ describe("ColumnAnalysis tests", () => {
   });
 
   test("ColumnAnalysis rendering float data", done => {
-    const ColumnAnalysis = require("../../popups/ColumnAnalysis").ReactColumnAnalysis;
+    const ColumnAnalysis = require("../../popups/analysis/ColumnAnalysis").ReactColumnAnalysis;
     buildInnerHTML();
     const result = mount(<ColumnAnalysis {...props} />, {
       attachTo: document.getElementById("content"),
@@ -151,7 +151,7 @@ describe("ColumnAnalysis tests", () => {
   });
 
   test("ColumnAnalysis rendering int data", done => {
-    const ColumnAnalysis = require("../../popups/ColumnAnalysis").ReactColumnAnalysis;
+    const ColumnAnalysis = require("../../popups/analysis/ColumnAnalysis").ReactColumnAnalysis;
     buildInnerHTML();
     const currProps = _.assignIn({}, props);
     currProps.chartData.selectedCol = "intCol";
@@ -166,7 +166,7 @@ describe("ColumnAnalysis tests", () => {
   });
 
   test("ColumnAnalysis rendering string data", done => {
-    const ColumnAnalysis = require("../../popups/ColumnAnalysis").ReactColumnAnalysis;
+    const ColumnAnalysis = require("../../popups/analysis/ColumnAnalysis").ReactColumnAnalysis;
     buildInnerHTML();
     const currProps = _.assignIn({}, props);
     currProps.chartData.selectedCol = "strCol";
@@ -181,7 +181,7 @@ describe("ColumnAnalysis tests", () => {
   });
 
   test("ColumnAnalysis rendering date data", done => {
-    const ColumnAnalysis = require("../../popups/ColumnAnalysis").ReactColumnAnalysis;
+    const ColumnAnalysis = require("../../popups/analysis/ColumnAnalysis").ReactColumnAnalysis;
     buildInnerHTML();
     const currProps = _.assignIn({}, props);
     currProps.chartData.selectedCol = "dateCol";
@@ -196,7 +196,7 @@ describe("ColumnAnalysis tests", () => {
   });
 
   test("ColumnAnalysis missing data", done => {
-    const ColumnAnalysis = require("../../popups/ColumnAnalysis").ReactColumnAnalysis;
+    const ColumnAnalysis = require("../../popups/analysis/ColumnAnalysis").ReactColumnAnalysis;
     const currProps = _.clone(props);
     currProps.chartData.query = "null";
     const result = mount(<ColumnAnalysis {...currProps} />);
@@ -208,7 +208,7 @@ describe("ColumnAnalysis tests", () => {
   });
 
   test("ColumnAnalysis error", done => {
-    const ColumnAnalysis = require("../../popups/ColumnAnalysis").ReactColumnAnalysis;
+    const ColumnAnalysis = require("../../popups/analysis/ColumnAnalysis").ReactColumnAnalysis;
     const currProps = _.clone(props);
     currProps.chartData.query = "error";
     const result = mount(<ColumnAnalysis {...currProps} />);

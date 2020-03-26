@@ -27,12 +27,12 @@ from dtale.dash_application.charts import (build_raw_chart, chart_url_params,
 from dtale.data_reshapers import DataReshaper
 from dtale.utils import (DuplicateDataError, build_code_export, build_query,
                          build_shutdown_url, classify_type, dict_merge,
-                         divide_chunks, find_dtype, find_dtype_formatter,
-                         find_selected_column, get_bool_arg, get_dtypes,
-                         get_int_arg, get_json_arg, get_str_arg, grid_columns,
-                         grid_formatter, json_date, json_float, json_int,
-                         json_timestamp, jsonify, make_list,
-                         retrieve_grid_params, run_query,
+                         divide_chunks, export_to_csv_buffer, find_dtype,
+                         find_dtype_formatter, find_selected_column,
+                         get_bool_arg, get_dtypes, get_int_arg, get_json_arg,
+                         get_str_arg, grid_columns, grid_formatter, json_date,
+                         json_float, json_int, json_timestamp, jsonify,
+                         make_list, retrieve_grid_params, run_query,
                          running_with_flask_debug, running_with_pytest,
                          sort_df_for_grid)
 
@@ -1134,10 +1134,28 @@ def get_data(data_id):
                         results[i] = dict_merge({IDX_COL: i}, d)
         columns = [dict(name=IDX_COL, dtype='int64', visible=True)] + global_state.get_dtypes(data_id)
         return_data = dict(results=results, columns=columns, total=total)
-        print(return_data)
         return jsonify(return_data)
     except BaseException as e:
         return jsonify(dict(error=str(e), traceback=str(traceback.format_exc())))
+
+
+@dtale.route('/data-export/<data_id>')
+def data_export(data_id):
+    try:
+        curr_settings = global_state.get_settings(data_id) or {}
+        curr_dtypes = global_state.get_dtypes(data_id) or []
+        data = run_query(
+            global_state.get_data(data_id),
+            build_query(data_id, curr_settings.get('query')),
+            global_state.get_context_variables(data_id),
+            ignore_empty=True,
+        )
+        data = data[[c['name'] for c in sorted(curr_dtypes, key=lambda c: c['index']) if c['visible']]]
+        csv_buffer = export_to_csv_buffer(data)
+        filename = build_chart_filename('data', ext='csv')
+        return send_file(csv_buffer, filename, 'text/csv')
+    except BaseException as e:
+        return jsonify(error=str(e), traceback=str(traceback.format_exc()))
 
 
 @dtale.route('/column-analysis/<data_id>')
@@ -1151,26 +1169,35 @@ def get_column_analysis(data_id):
     :param type: string from flask.request.args['type'] to signify either a histogram or value counts
     :param query: string from flask.request.args['query'] which is applied to DATA using the query() function
     :param bins: the number of bins to display in your histogram, options on the front-end are 5, 10, 20, 50
+    :param top: the number of top values to display in your value counts, default is 100
     :returns: JSON {results: DATA, desc: output from pd.DataFrame[col].describe(), success: True/False}
     """
     try:
         col = get_str_arg(request, 'col', 'values')
         bins = get_int_arg(request, 'bins', 20)
+        top = get_int_arg(request, 'top', 100)
+        ordinal_col = get_str_arg(request, 'ordinalCol')
+        ordinal_agg = get_str_arg(request, 'ordinalAgg', 'sum')
         data_type = get_str_arg(request, 'type') or 'histogram'
-        data = run_query(
-            global_state.get_data(data_id),
-            build_query(data_id, get_str_arg(request, 'query')),
-            global_state.get_context_variables(data_id)
-        )
+        query = build_query(data_id, get_str_arg(request, 'query'))
+        data = run_query(global_state.get_data(data_id), query, global_state.get_context_variables(data_id))
         selected_col = find_selected_column(data, col)
-        data = data[~pd.isnull(data[selected_col])][[selected_col]]
+        cols = [selected_col] + ([ordinal_col] if ordinal_col is not None else [])
+        data = data[~pd.isnull(data[selected_col])][cols]
 
         code = build_code_export(data_id, imports='import numpy as np\nimport pandas as pd\n\n')
         dtype = get_dtypes(data)[selected_col]
         classifier = classify_type(dtype)
         if classifier in ['S', 'D'] or data_type != 'histogram':
-            hist = pd.value_counts(data[selected_col]).reset_index()
+            hist = pd.value_counts(data[selected_col]).to_frame(name='data')
+            if ordinal_col is not None:
+                ordinal_data = getattr(data.groupby(selected_col)[[ordinal_col]], ordinal_agg)()
+                hist['sort'] = ordinal_data
+                hist = hist.sort_values('sort')[['data']]
+            hist = hist.reset_index()
             hist.columns = ['labels', 'data']
+            if top is not None:
+                hist = hist[hist.index < int(top)]
             col_types = grid_columns(hist)
             f = grid_formatter(col_types, nan_display=None)
             return_data = f.format_lists(hist)
@@ -1186,7 +1213,8 @@ def get_column_analysis(data_id):
             desc, desc_code = load_describe(data[selected_col])
             code += desc_code
             return_data = dict(labels=hist_labels, data=hist_data, desc=desc, dtype=dtype, chart_type='histogram')
-        return jsonify(code='\n'.join(code), **return_data)
+        cols = global_state.get_dtypes(data_id)
+        return jsonify(code='\n'.join(code), query=query, cols=cols, **return_data)
     except BaseException as e:
         return jsonify(dict(error=str(e), traceback=str(traceback.format_exc())))
 
