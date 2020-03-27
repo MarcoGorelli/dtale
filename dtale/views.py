@@ -1178,43 +1178,69 @@ def get_column_analysis(data_id):
         top = get_int_arg(request, 'top', 100)
         ordinal_col = get_str_arg(request, 'ordinalCol')
         ordinal_agg = get_str_arg(request, 'ordinalAgg', 'sum')
-        data_type = get_str_arg(request, 'type') or 'histogram'
-        query = build_query(data_id, get_str_arg(request, 'query'))
+        category_col = get_str_arg(request, 'categoryCol')
+        category_agg = get_str_arg(request, 'categoryAgg', 'mean')
+        data_type = get_str_arg(request, 'type')
+        curr_settings = global_state.get_settings(data_id) or {}
+        query = build_query(data_id, curr_settings.get('query'))
         data = run_query(global_state.get_data(data_id), query, global_state.get_context_variables(data_id))
         selected_col = find_selected_column(data, col)
-        cols = [selected_col] + ([ordinal_col] if ordinal_col is not None else [])
+        cols = [selected_col]
+        if ordinal_col is not None:
+            cols.append(ordinal_col)
+        if category_col is not None:
+            cols.append(category_col)
         data = data[~pd.isnull(data[selected_col])][cols]
 
         code = build_code_export(data_id, imports='import numpy as np\nimport pandas as pd\n\n')
         dtype = get_dtypes(data)[selected_col]
         classifier = classify_type(dtype)
-        if classifier in ['S', 'D'] or data_type != 'histogram':
+        if data_type is None:
+            data_type = 'histogram' if classifier == 'F' else 'value_counts'
+        if data_type == 'value_counts':
             hist = pd.value_counts(data[selected_col]).to_frame(name='data')
+            code.append("chart = pd.value_counts(df[~pd.isnull(df['{col}'])]['{col}'])".format(col=selected_col))
             if ordinal_col is not None:
                 ordinal_data = getattr(data.groupby(selected_col)[[ordinal_col]], ordinal_agg)()
-                hist['sort'] = ordinal_data
-                hist = hist.sort_values('sort')[['data']]
+                hist['ordinal'] = ordinal_data
+                hist = hist.sort_values('ordinal')
+                code.append((
+                    "ordinal_data = df.groupby('{col}')[['{ordinal}']].{agg}()\n"
+                    "chart['ordinal'] = ordinal_data\n"
+                    "chart = chart.sort_values('ordinal')"
+                ).format(col=selected_col, ordinal=ordinal_col, agg=ordinal_agg))
+            hist.index.name = 'labels'
             hist = hist.reset_index()
-            hist.columns = ['labels', 'data']
             if top is not None:
                 hist = hist[hist.index < int(top)]
             col_types = grid_columns(hist)
             f = grid_formatter(col_types, nan_display=None)
             return_data = f.format_lists(hist)
-            return_data['dtype'] = dtype
-            return_data['chart_type'] = 'value_counts'
-            code.append("hist = pd.value_counts(df[~pd.isnull(df['{col}'])]['{col}'])".format(col=selected_col))
-        else:
+        elif data_type == 'categories':
+            hist = data.groupby(category_col)[[selected_col]].agg(['count', category_agg])
+            hist.columns = hist.columns.droplevel(0)
+            hist.columns = ['count', 'data']
+            code.append(
+                "chart = data.groupby('{cat}')[['{col}']].agg(['count', '{agg}'])".format(
+                    cat=category_col, col=selected_col, agg=category_agg)
+            )
+            hist.index.name = 'labels'
+            hist = hist.reset_index()
+            if top is not None:
+                hist = hist[hist.index < int(top)]
+            f = grid_formatter(grid_columns(hist), nan_display=None)
+            return_data = f.format_lists(hist)
+        elif data_type == 'histogram':
             hist_data, hist_labels = np.histogram(data, bins=bins)
             hist_data = [json_float(h) for h in hist_data]
             hist_labels = ['{0:.1f}'.format(l) for l in hist_labels]
-            code.append("hist = np.histogram(df[~pd.isnull(df['{col}'])][['{col}']], bins={bins})".format(
+            code.append("chart = np.histogram(df[~pd.isnull(df['{col}'])][['{col}']], bins={bins})".format(
                 col=selected_col, bins=bins))
             desc, desc_code = load_describe(data[selected_col])
             code += desc_code
-            return_data = dict(labels=hist_labels, data=hist_data, desc=desc, dtype=dtype, chart_type='histogram')
+            return_data = dict(labels=hist_labels, data=hist_data, desc=desc)
         cols = global_state.get_dtypes(data_id)
-        return jsonify(code='\n'.join(code), query=query, cols=cols, **return_data)
+        return jsonify(code='\n'.join(code), query=query, cols=cols, dtype=dtype, chart_type=data_type, **return_data)
     except BaseException as e:
         return jsonify(dict(error=str(e), traceback=str(traceback.format_exc())))
 
@@ -1236,9 +1262,10 @@ def get_correlations(data_id):
     } or {error: 'Exception message', traceback: 'Exception stacktrace'}
     """
     try:
+        curr_settings = global_state.get_settings(data_id) or {}
         data = run_query(
             global_state.get_data(data_id),
-            build_query(data_id, get_str_arg(request, 'query')),
+            build_query(data_id, curr_settings.get('query')),
             global_state.get_context_variables(data_id)
         )
         valid_corr_cols = []
@@ -1341,7 +1368,6 @@ def get_correlations_ts(data_id):
 
     :param data_id: integer string identifier for a D-Tale process's data
     :type data_id: str
-    :param query: string from flask.request.args['query'] which is applied to DATA using the query() function
     :param cols: comma-separated string from flask.request.args['cols'] containing names of two columns in dataframe
     :param dateCol: string from flask.request.args['dateCol'] with name of date-type column in dateframe for timeseries
     :returns: JSON {
@@ -1349,9 +1375,10 @@ def get_correlations_ts(data_id):
     } or {error: 'Exception message', traceback: 'Exception stacktrace'}
     """
     try:
+        curr_settings = global_state.get_settings(data_id) or {}
         data = run_query(
             global_state.get_data(data_id),
-            build_query(data_id, get_str_arg(request, 'query')),
+            build_query(data_id, curr_settings.get('query')),
             global_state.get_context_variables(data_id)
         )
         cols = get_str_arg(request, 'cols')
@@ -1399,7 +1426,6 @@ def get_scatter(data_id):
 
     :param data_id: integer string identifier for a D-Tale process's data
     :type data_id: str
-    :param query: string from flask.request.args['query'] which is applied to DATA using the query() function
     :param cols: comma-separated string from flask.request.args['cols'] containing names of two columns in dataframe
     :param dateCol: string from flask.request.args['dateCol'] with name of date-type column in dateframe for timeseries
     :param date: string from flask.request.args['date'] date value in dateCol to filter dataframe to
@@ -1423,9 +1449,10 @@ def get_scatter(data_id):
         date_col = get_str_arg(request, 'dateCol')
         rolling = get_bool_arg(request, 'rolling')
 
+        curr_settings = global_state.get_settings(data_id) or {}
         data = run_query(
             global_state.get_data(data_id),
-            build_query(data_id, get_str_arg(request, 'query')),
+            build_query(data_id, curr_settings.get('query')),
             global_state.get_context_variables(data_id)
         )
         idx_col = str('index')

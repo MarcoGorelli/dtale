@@ -159,16 +159,12 @@ class RandomColumnBuilder(object):
             low = self.cfg.get('low', 0)
             high = self.cfg.get('high', 100)
             return pd.Series(
-                np.random.randint(low, high=high, size=len(data)), index=data.index, name=self.name
+                np.random.random_integers(low, high=high, size=len(data)), index=data.index, name=self.name
             )
         # floats
         low = self.cfg.get('low', 0)
         high = self.cfg.get('high', 1)
-        floats = np.random.rand(len(data))
-        if low != 0 or high != 1:
-            ints = np.random.randint(low, high=high - 1, size=len(data))
-            floats = floats + ints
-        return pd.Series(floats, index=data.index, name=self.name)
+        return pd.Series(np.random.uniform(low, high, len(data)), index=data.index, name=self.name)
 
     def build_code(self):
         rand_type = self.cfg['type']
@@ -192,19 +188,13 @@ class RandomColumnBuilder(object):
             high = self.cfg.get('high', 100)
             return (
                 'import numpy as np\n\n'
-                "df.loc[:, '{name}'] = pd.Series(np.random.randint({low}, high={high}, size=len(df)), index=df.index)"
+                "df.loc[:, '{name}'] = pd.Series(np.random.random_integers({low}, high={high}, size=len(df)), "
+                'index=df.index)'
             ).format(name=self.name, low=low, high=high)
 
         low = self.cfg.get('low', 0)
         high = self.cfg.get('high', 1)
-        if low != 0 or high != 1:
-            return (
-                'import numpy as np\n\n'
-                'floats = np.random.rand(len(df))\n'
-                'ints = np.random.randint({low}, high={high}, size=len(df))\n'
-                "df.loc[:, '{name}'] = pd.Series(floats + ints, index=dfr.index)"
-            ).format(name=self.name, low=low, high=high - 1)
         return (
             'import numpy as np\n\n'
-            "df.loc[:, '{name}'] = pd.Series(np.random.rand(len(df)), index=df.index)"
-        ).format(name=self.name)
+            "df.loc[:, '{name}'] = pd.Series(np.random.uniform({low}, {high}, len(df)), index=df.index)"
+        ).format(low, high, name=self.name)

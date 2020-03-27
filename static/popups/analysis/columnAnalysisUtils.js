@@ -1,13 +1,69 @@
 import _ from "lodash";
 import $ from "jquery";
 import chartUtils from "../../chartUtils";
-import { findColType } from "../../dtale/gridUtils";
-import React from "react";
 
 const DESC_PROPS = ["count", "mean", "std", "min", "25%", "50%", "75%", "max"];
 
-function createChart(ctx, fetchedData, col, type) {
-  const { desc, labels, data } = fetchedData;
+function buildValueCountsAxes(baseCfg, fetchedData, chartOpts) {
+  const xAxes = [{ scaleLabel: { display: true, labelString: "Value" } }];
+  const { data, ordinal } = fetchedData;
+  let datasets = [{ label: "Frequency", type: "bar", data, backgroundColor: "rgb(42, 145, 209)", yAxisID: "y-1" }];
+  const yAxes = [{ scaleLabel: { display: true, labelString: "Frequency" }, position: "left", id: "y-1" }];
+  if (_.has(fetchedData, "ordinal")) {
+    const ordinalCol = _.get(chartOpts, "ordinalCol.value");
+    const ordinalAgg = _.get(chartOpts, "ordinalAgg.value");
+    yAxes.push({
+      scaleLabel: { display: true, labelString: `${ordinalCol} (${ordinalAgg})` },
+      id: "y-2",
+      position: "right",
+    });
+    datasets = _.concat(
+      _.assignIn(
+        { label: `${ordinalCol} (${ordinalAgg})`, type: "line", fill: false, borderColor: "rgb(255, 99, 132)" },
+        { borderWidth: 2, data: ordinal, backgroundColor: "rgb(255, 99, 132)", yAxisID: "y-2" }
+      ),
+      datasets
+    );
+    baseCfg.options.tooltips = { mode: "index", intersect: true };
+  }
+  baseCfg.data.datasets = datasets;
+  baseCfg.options.scales = { xAxes, yAxes };
+  baseCfg.options.scales.yAxes[0].ticks = { min: 0 };
+}
+
+function buildCategoryAxes(baseCfg, fetchedData, chartOpts) {
+  const { data, count } = fetchedData;
+  const xAxes = [{ scaleLabel: { display: true, labelString: _.get(chartOpts, "categoryCol.value") } }];
+  const yLabel = `${chartOpts.selectedCol} (${_.get(chartOpts, "categoryAgg.label")})`;
+  const yAxes = [
+    { scaleLabel: { display: true, labelString: yLabel }, id: "y-1", position: "left" },
+    { scaleLabel: { display: true, labelString: "Frequency" }, id: "y-2", position: "right" },
+  ];
+  const datasets = [
+    _.assignIn(
+      { label: "Frequency", type: "line", fill: false, borderColor: "rgb(255, 99, 132)", borderWidth: 2 },
+      { data: count, backgroundColor: "rgb(255, 99, 132)", yAxisID: "y-2" }
+    ),
+    { type: "bar", data, backgroundColor: "rgb(42, 145, 209)", yAxisID: "y-1", label: yLabel },
+  ];
+  baseCfg.data.datasets = datasets;
+  baseCfg.options.scales = { xAxes, yAxes };
+  baseCfg.options.scales.yAxes[0].ticks = { min: 0 };
+  baseCfg.options.tooltips = { mode: "index", intersect: true };
+}
+
+function buildHistogramAxes(baseCfg, fetchedData, _chartOpts) {
+  const { data } = fetchedData;
+  const xAxes = [{ scaleLabel: { display: true, labelString: "Bin" } }];
+  const yAxes = [{ scaleLabel: { display: true, labelString: "Frequency" }, position: "left" }];
+  const datasets = [{ label: "Frequency", type: "bar", data: data, backgroundColor: "rgb(42, 145, 209)" }];
+  baseCfg.data.datasets = datasets;
+  baseCfg.options.scales = { xAxes, yAxes };
+  baseCfg.options.scales.yAxes[0].ticks = { min: 0 };
+}
+
+function createChart(ctx, fetchedData, chartOpts) {
+  const { desc, labels } = fetchedData;
   if (desc) {
     const descHTML = _.map(DESC_PROPS, p => `${_.capitalize(p)}: <b>${desc[p]}</b>`).join(", ");
     $("#describe").html(`<small>${descHTML}</small>`);
@@ -16,69 +72,25 @@ function createChart(ctx, fetchedData, col, type) {
   }
   const chartCfg = {
     type: "bar",
-    data: {
-      labels: labels,
-      datasets: [{ label: col, data: data, backgroundColor: "rgb(42, 145, 209)" }],
-    },
+    data: { labels },
     options: {
       legend: { display: false },
-      scales: {
-        xAxes: [
-          {
-            scaleLabel: {
-              display: true,
-              labelString: type === "histogram" ? "Bin" : "Value",
-            },
-          },
-        ],
-        yAxes: [
-          {
-            scaleLabel: {
-              display: true,
-              labelString: "Count",
-            },
-          },
-        ],
-      },
     },
   };
-  if (type === "value_counts") {
-    chartCfg.options.scales.yAxes[0].ticks = { min: 0 };
+  let infoBuilder = _.noop;
+  switch (chartOpts.type) {
+    case "histogram":
+      infoBuilder = buildHistogramAxes;
+      break;
+    case "value_counts":
+      infoBuilder = buildValueCountsAxes;
+      break;
+    case "categories":
+      infoBuilder = buildCategoryAxes;
+      break;
   }
+  infoBuilder(chartCfg, fetchedData, chartOpts);
   return chartUtils.createChart(ctx, chartCfg);
 }
 
-function filterBuilder(state, chartBuilder, propagateState) {
-  return prop => {
-    const colType = findColType(state.dtype);
-    const updateFilter = e => {
-      if (e.key === "Enter") {
-        if (state[prop] && parseInt(state[prop])) {
-          chartBuilder();
-        }
-        e.preventDefault();
-      }
-    };
-    return [
-      <div key={0} className={`col-auto text-center pr-4 ${colType === "int" ? "pl-0" : ""}`}>
-        <div>
-          <b>{_.capitalize(prop)}</b>
-        </div>
-        <div style={{ marginTop: "-.5em" }}>
-          <small>(Please edit)</small>
-        </div>
-      </div>,
-      <div key={1} style={{ width: "3em" }} data-tip="Press ENTER to submit" className="mb-auto mt-auto">
-        <input
-          type="text"
-          className="form-control text-center column-analysis-filter"
-          value={state[prop]}
-          onChange={e => propagateState({ [prop]: e.target.value })}
-          onKeyPress={updateFilter}
-        />
-      </div>,
-    ];
-  };
-}
-
-export { createChart, filterBuilder };
+export { createChart };
